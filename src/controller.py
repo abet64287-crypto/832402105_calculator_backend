@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import socket
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -17,6 +18,17 @@ from .service import CalculationError, decimal_to_json_number, decimal_to_storag
 MAX_REQUEST_BYTES = 16 * 1024
 MAX_RECORD_ID = 2**63 - 1
 HISTORY_ITEM_PATH = re.compile(r"^/api/history/([1-9][0-9]*)$")
+
+
+class ExclusiveThreadingHTTPServer(ThreadingHTTPServer):
+    """Prevent two calculator processes from serving the same address."""
+
+    allow_reuse_address = False
+
+    def server_bind(self) -> None:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 @dataclass(frozen=True)
@@ -50,7 +62,7 @@ def create_server(
     port: int,
     database_path: str,
     allowed_origins: str = "*",
-) -> ThreadingHTTPServer:
+) -> ExclusiveThreadingHTTPServer:
     service = CalculatorService(HistoryRepository(database_path))
     origins = {origin.strip() for origin in allowed_origins.split(",") if origin.strip()}
 
@@ -164,4 +176,4 @@ def create_server(
             self.send_header("Access-Control-Max-Age", "600")
             self.end_headers()
 
-    return ThreadingHTTPServer((host, port), RequestHandler)
+    return ExclusiveThreadingHTTPServer((host, port), RequestHandler)

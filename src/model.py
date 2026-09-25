@@ -34,15 +34,29 @@ class HistoryRepository:
     def __init__(self, database_path: str | Path):
         self.database_path = Path(database_path).expanduser()
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as connection:
-            connection.execute(
-                """CREATE TABLE IF NOT EXISTS calculation_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    expression TEXT NOT NULL,
-                    result TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                )"""
-            )
+        try:
+            with self._connect() as connection:
+                connection.execute(
+                    """CREATE TABLE IF NOT EXISTS calculation_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        expression TEXT NOT NULL,
+                        result TEXT NOT NULL,
+                        created_at TEXT NOT NULL
+                    )"""
+                )
+            # A no-op transaction may succeed on a read-only database. Actually
+            # write a row and roll it back to verify INSERT/DELETE capability.
+            with self._connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                try:
+                    connection.execute(
+                        "INSERT INTO calculation_history (expression, result, created_at) VALUES (?, ?, ?)",
+                        ("startup-probe", "0", "startup-probe"),
+                    )
+                finally:
+                    connection.rollback()
+        except sqlite3.Error as exc:
+            raise RuntimeError(f"SQLite database is not writable at {self.database_path}: {exc}") from exc
 
     @contextmanager
     def _connect(self):

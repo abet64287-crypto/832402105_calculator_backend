@@ -46,6 +46,7 @@ class CalculatorApiTests(unittest.TestCase):
     def test_success_history_persistence_and_delete(self):
         status, headers, result = self.request("POST", "/api/calculate", {"expression": "0.1+0.2"})
         self.assertEqual(status, 200)
+        self.assertEqual(result["id"], 1)  # The startup write probe must be rolled back.
         self.assertEqual(headers["Access-Control-Allow-Origin"], "http://localhost:3000")
         self.assertEqual(result["result"], 0.3)
         self.assertEqual(result["result_text"], "0.3")
@@ -129,6 +130,10 @@ class CalculatorApiTests(unittest.TestCase):
         status, _, response = self.request("DELETE", "/api/history/9999999999999999999")
         self.assertEqual(status, 400)
         self.assertEqual(response["error"]["code"], "INVALID_ID")
+
+    def test_second_server_cannot_bind_occupied_port(self):
+        with self.assertRaises(OSError):
+            create_server("127.0.0.1", self.server.server_port, str(self.database_path))
 
 
 if __name__ == "__main__":
