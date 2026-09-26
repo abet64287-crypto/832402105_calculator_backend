@@ -86,6 +86,59 @@ class CalculatorApiTests(unittest.TestCase):
         _, _, history = self.request("GET", "/api/history")
         self.assertEqual(history["history"], [])
 
+    def test_scientific_results_persist_and_can_be_deleted(self):
+        examples = [
+            ("2^3^2", "512"),
+            ("sqrt(81)", "9"),
+            ("sin(pi/2)", "1"),
+            ("log(100)", "2"),
+        ]
+        saved = []
+        for expression, expected in examples:
+            with self.subTest(expression=expression):
+                status, _, response = self.request("POST", "/api/calculate", {"expression": expression})
+                self.assertEqual(status, 200)
+                self.assertTrue(response["success"])
+                self.assertEqual(response["result_text"], expected)
+                saved.append(response)
+
+        self._stop_server()
+        self._start_server()
+        status, _, response = self.request("GET", "/api/history")
+        self.assertEqual(status, 200)
+        self.assertEqual([item["expression"] for item in response["history"]], [item[0] for item in reversed(examples)])
+
+        deleted_id = saved[1]["id"]
+        status, _, response = self.request("DELETE", f"/api/history/{deleted_id}")
+        self.assertEqual(status, 200)
+        self.assertEqual(response, {"success": True, "id": deleted_id})
+        status, _, response = self.request("GET", "/api/history")
+        self.assertEqual(status, 200)
+        self.assertNotIn(deleted_id, [item["id"] for item in response["history"]])
+
+    def test_scientific_errors_return_400_without_history(self):
+        examples = [
+            ("sqrt(-1)", "DOMAIN_ERROR"),
+            ("tan(pi/2)", "DOMAIN_ERROR"),
+            ("0^0", "DOMAIN_ERROR"),
+            ("0^-1", "DIVISION_BY_ZERO"),
+            ("sin 1", "INVALID_EXPRESSION"),
+            ("10^1000", "RESULT_OUT_OF_RANGE"),
+        ]
+        for expression, expected_code in examples:
+            with self.subTest(expression=expression):
+                status, _, response = self.request("POST", "/api/calculate", {"expression": expression})
+                self.assertEqual(status, 400)
+                self.assertFalse(response["success"])
+                self.assertEqual(response["error"]["code"], expected_code)
+
+        status, _, response = self.request("GET", "/api/history")
+        self.assertEqual(status, 200)
+        self.assertEqual(response["history"], [])
+        with closing(sqlite3.connect(self.database_path)) as connection:
+            count = connection.execute("SELECT COUNT(*) FROM calculation_history").fetchone()[0]
+        self.assertEqual(count, 0)
+
     def test_exact_result_text_survives_database_restart(self):
         cases = [
             ("1.234567890123456789+0", "1.234567890123456789"),

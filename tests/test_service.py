@@ -1,5 +1,6 @@
 import unittest
 from decimal import Decimal
+from math import sin
 
 from src.service import CalculationError, evaluate
 
@@ -39,6 +40,61 @@ class ExpressionParserTests(unittest.TestCase):
         with self.assertRaises(CalculationError) as context:
             evaluate("1" * 501)
         self.assertEqual(context.exception.code, "EXPRESSION_TOO_LONG")
+
+    def test_scientific_functions_constants_and_nested_expressions(self):
+        cases = {
+            "2^3^2": Decimal("512"),
+            "-2^2": Decimal("-4"),
+            "(-2)^2": Decimal("4"),
+            "2^-3": Decimal("0.125"),
+            "2*3^2": Decimal("18"),
+            "(2+1)^2": Decimal("9"),
+            "sqrt(81)": Decimal("9"),
+            "sqrt(abs(-9))": Decimal("3"),
+            "abs(-4.5)": Decimal("4.5"),
+            "ln(e)": Decimal("1"),
+            "log(1000)": Decimal("3"),
+            "sin(pi/2)": Decimal("1"),
+            "sin(π)": Decimal("0"),
+            "cos(pi)": Decimal("-1"),
+            "tan(pi/4)": Decimal("1"),
+            "sin(-pi/2)": Decimal("-1"),
+        }
+        for expression, expected in cases.items():
+            with self.subTest(expression=expression):
+                self.assertEqual(evaluate(expression), expected)
+
+    def test_trigonometric_values_use_radians(self):
+        self.assertAlmostEqual(float(evaluate("sin(30)")), sin(30), places=14)
+        self.assertAlmostEqual(float(evaluate("sin(pi/6)")), 0.5, places=14)
+        self.assertAlmostEqual(float(evaluate("cos(pi/3)")), 0.5, places=14)
+        self.assertAlmostEqual(float(evaluate("tan(pi/6)")), 1 / 3**0.5, places=14)
+
+    def test_scientific_domain_and_range_errors(self):
+        cases = {
+            "sqrt(-1)": "DOMAIN_ERROR",
+            "ln(0)": "DOMAIN_ERROR",
+            "log(-10)": "DOMAIN_ERROR",
+            "tan(pi/2)": "DOMAIN_ERROR",
+            "tan(-pi/2)": "DOMAIN_ERROR",
+            "0^0": "DOMAIN_ERROR",
+            "(-2)^0.5": "DOMAIN_ERROR",
+            "0^-1": "DIVISION_BY_ZERO",
+            "10^1000": "RESULT_OUT_OF_RANGE",
+            "sin(1000001)": "RESULT_OUT_OF_RANGE",
+        }
+        for expression, expected_code in cases.items():
+            with self.subTest(expression=expression):
+                with self.assertRaises(CalculationError) as context:
+                    evaluate(expression)
+                self.assertEqual(context.exception.code, expected_code)
+
+    def test_scientific_syntax_is_restricted(self):
+        for expression in ["sin 1", "sin()", "sqrt(4,5)", "pi(2)", "2pi", "log1", "foo(1)", "sin(pi", "2^^3"]:
+            with self.subTest(expression=expression):
+                with self.assertRaises(CalculationError) as context:
+                    evaluate(expression)
+                self.assertEqual(context.exception.code, "INVALID_EXPRESSION")
 
 
 if __name__ == "__main__":
