@@ -11,11 +11,14 @@ from .controller import create_server
 def main() -> None:
     backend_root = Path(__file__).resolve().parent.parent
     database_path = os.getenv("CALCULATOR_DB_PATH", str(backend_root / "calculations.db"))
+    database_url = os.getenv("DATABASE_URL")
+    if os.getenv("RENDER") == "true" and not database_url:
+        raise SystemExit("DATABASE_URL is required on Render to persist history in PostgreSQL.")
     host = os.getenv("CALCULATOR_HOST", "127.0.0.1")
     port = int(os.getenv("CALCULATOR_PORT", os.getenv("PORT", "8000")))
     allowed_origins = os.getenv("CALCULATOR_ALLOWED_ORIGINS", "*")
     try:
-        server = create_server(host, port, database_path, allowed_origins)
+        server = create_server(host, port, database_path, allowed_origins, database_url)
     except (OSError, RuntimeError) as exc:
         raise SystemExit(f"Calculator API could not start on {host}:{port}: {exc}") from exc
     print(f"Calculator API listening on http://{host}:{server.server_port}", flush=True)

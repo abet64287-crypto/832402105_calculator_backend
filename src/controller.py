@@ -11,7 +11,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from .model import HistoryRepository
+from .model import HistoryRepository, PostgresHistoryRepository
 from .service import CalculationError, decimal_to_json_number, decimal_to_storage, evaluate
 
 
@@ -39,7 +39,7 @@ class ApiError(Exception):
 
 
 class CalculatorService:
-    def __init__(self, repository: HistoryRepository):
+    def __init__(self, repository: HistoryRepository | PostgresHistoryRepository):
         self.repository = repository
 
     def calculate(self, expression: Any) -> dict[str, Any]:
@@ -62,8 +62,10 @@ def create_server(
     port: int,
     database_path: str,
     allowed_origins: str = "*",
+    database_url: str | None = None,
 ) -> ExclusiveThreadingHTTPServer:
-    service = CalculatorService(HistoryRepository(database_path))
+    repository = PostgresHistoryRepository(database_url) if database_url else HistoryRepository(database_path)
+    service = CalculatorService(repository)
     origins = {origin.strip() for origin in allowed_origins.split(",") if origin.strip()}
 
     class RequestHandler(BaseHTTPRequestHandler):
