@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily calculator SQLite history backup
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=calculator-backup.service
+
+[Install]
+WantedBy=timers.target

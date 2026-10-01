@@ -1,0 +1,14 @@
+[Unit]
+Description=Back up calculator SQLite history
+RequiresMountsFor=/var/lib/calculator /var/backups/calculator
+
+[Service]
+Type=oneshot
+User=calculator
+Group=calculator
+ExecStart=/usr/bin/python3 /opt/calculator-backend/deploy/tencent/backup_sqlite.py /var/lib/calculator/calculations.db /var/backups/calculator
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/calculator
