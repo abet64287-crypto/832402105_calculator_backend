@@ -1,25 +1,25 @@
-# 后端代码规范
+# Backend Code Style
 
-规范来源：[PEP 8 Python 代码风格指南](https://peps.python.org/pep-0008/) 和 [PEP 257 文档字符串约定](https://peps.python.org/pep-0257/)。本项目按这两份 Python 社区规范制定以下约定。
+Sources: [PEP 8: Style Guide for Python Code](https://peps.python.org/pep-0008/) and [PEP 257: Docstring Conventions](https://peps.python.org/pep-0257/). I used these Python community guides for this project's conventions.
 
-## 命名与排版
+## Names and formatting
 
-- 使用 UTF-8 编码和 4 个空格缩进，不使用制表符。
-- 模块、函数、变量使用 `snake_case`；类使用 `PascalCase`；常量使用 `UPPER_SNAKE_CASE`。
-- 导入放在文件开头，按标准库、第三方库、本项目模块分组。PostgreSQL 驱动仅在使用 PostgreSQL 时导入。
-- 函数保持单一职责；较长的表达式拆成可读的多行。
-- 对公共模块、类和不直观的函数写简短文档字符串；注释解释原因，避免重复代码表面含义。
+- Use UTF-8 and four spaces for indentation, without tabs.
+- Use `snake_case` for modules, functions, and variables; `PascalCase` for classes; and `UPPER_SNAKE_CASE` for constants.
+- Put imports near the top and group standard library, third-party, and local imports. Import the PostgreSQL driver only in PostgreSQL mode.
+- Keep functions focused and split long expressions into readable lines.
+- Add short docstrings to public modules, classes, and functions whose behavior is not obvious. Comments should explain why code exists rather than repeat what it says.
 
-## 后端约定
+## Backend rules
 
-- HTTP 处理、表达式解析、数据库访问分层，避免在路由中混合计算和 SQL。
-- 对外部 JSON、表达式长度、字符及记录 ID 做验证；失败时使用清晰的 HTTP 状态码和统一的 JSON 错误结构。
-- 不使用 `eval`、`exec` 或任何将用户表达式作为程序代码执行的方法。
-- SQL 使用参数绑定；每次成功计算在返回结果前写入所选后端数据库。数据库连接及时关闭。
-- 时间统一使用带时区的 ISO 8601 格式；不要把本机绝对路径写死在代码中。
-- 错误信息不泄露堆栈或本机路径；内部异常应有可排查的日志。
+- Keep HTTP handling, expression parsing, and database access in separate modules. Do not put calculator logic or SQL in routes.
+- Validate JSON input, expression length and characters, and history IDs. Use clear HTTP status codes and a consistent JSON error shape.
+- Do not use `eval`, `exec`, or another way to run a user's expression as program code.
+- Bind SQL parameters. Save each successful calculation before returning its result, and close database connections promptly.
+- Use timezone-aware ISO 8601 timestamps. Do not hard-code a developer's local filesystem path.
+- Do not expose stack traces or local paths in API errors. Log internal failures so they can be diagnosed.
 
-## 验证
+## Before submission
 
-- 为运算优先级、括号、一元符号、小数、错误输入、除零和持久化行为编写有意义的测试。
-- 提交前运行 README 中的测试命令，并检查前后端联调。
+- Test precedence, parentheses, unary signs, decimals, invalid input, division by zero, and saved history.
+- Run the test command in `README.md` and check the frontend and backend together.
