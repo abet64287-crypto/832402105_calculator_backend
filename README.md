@@ -112,7 +112,6 @@ sudo caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl enable --now caddy
 sudo systemctl reload caddy
 curl -fsS https://43-129-177-221.sslip.io/api/health
-curl -fsS https://api.calculator-demo.site/api/health
 ```
 
 Caddy sends requests to `127.0.0.1:8000` and [manages the certificates](https://caddyserver.com/docs/automatic-https). Certificate setup may take a moment after reload. The alternate hostname is provided by [sslip.io](https://sslip.io/), which maps its embedded IP to this server. I verified the alternate health and history endpoints over a direct connection without a proxy; TLS validation passed, and the Pages CORS preflight returned HTTP 204. The purchased domain still works from some networks, but direct requests on my tested route returned `ERR_CONNECTION_RESET`. If HTTPS fails later, check DNS, TCP 80/443, `sudo systemctl status caddy --no-pager`, and `sudo journalctl -u caddy -n 80 --no-pager`. If the server IP changes, the sslip.io hostname and Pages variable must change too. I have not separately verified HTTP redirection.
