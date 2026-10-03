@@ -2,3 +2,9 @@
 api.calculator-demo.site {
     reverse_proxy 127.0.0.1:8000
 }
+
+# Alternate hostname for networks that reset connections to calculator-demo.site.
+# sslip.io resolves the embedded IPv4 address without another DNSPod record.
+43-129-177-221.sslip.io {
+    reverse_proxy 127.0.0.1:8000
+}
