@@ -2,7 +2,7 @@
 
 I built this Python JSON API for my calculator assignment. The [frontend](https://github.com/abet64287-crypto/832402105_calculator_frontend) is a separate project. It sends expressions to this backend, which calculates them and saves successful results for the history page.
 
-The frontend is published on GitHub Pages. I have bought a Tencent Cloud server in Hong Kong and the `calculator-demo.site` domain for this backend. The public API is at <https://api.calculator-demo.site/api/health>, and the server's public IP is `43.129.177.221`. Its DNS A record resolves to that IP. I keep SQLite history on the server disk. The code also supports PostgreSQL, but it is optional. Public HTTPS, calculation, history, deletion, error requests, and a Pages browser test have passed. A saved row also survived a full server reboot.
+The frontend is published on GitHub Pages. I bought a Tencent Cloud server in Hong Kong and the `calculator-demo.site` domain for this backend. The Pages deployment now uses <https://43-129-177-221.sslip.io/api/health> because direct connections to my domain reset on some networks. Both hostnames reach the same server at `43.129.177.221`. I keep SQLite history on the server disk. The code also supports PostgreSQL, but it is optional. Public HTTPS, calculation, history, deletion, error requests, and a Pages browser test have passed. A saved row also survived a full server reboot.
 
 ## Requirements and local use
 
@@ -45,7 +45,7 @@ If SQLite cannot be opened, check the file and parent directory permissions. In 
 
 ## Tencent Cloud deployment (Ubuntu Server 24.04 LTS)
 
-My server is in Tencent Cloud's Hong Kong Zone 3, and it uses Ubuntu Server 24.04 LTS. I use the `api.calculator-demo.site` subdomain for the API. On October 3, I confirmed that its DNSPod A record resolves to `43.129.177.221`. The API runs under systemd on `127.0.0.1:8000` behind Caddy. Local HTTP and public HTTPS health requests returned HTTP 200; public TLS validation passed. Caddy listened on TCP 80 and 443. I have not separately verified HTTP redirection.
+My server is in Tencent Cloud's Hong Kong Zone 3, and it uses Ubuntu Server 24.04 LTS. On October 3, I confirmed that the DNSPod A record for `api.calculator-demo.site` resolves to `43.129.177.221`. I later added `43-129-177-221.sslip.io` as a second hostname because direct requests to the purchased domain were reset on some networks. The API runs under systemd on `127.0.0.1:8000` behind Caddy. Direct requests to the second hostname returned HTTP 200 with a valid HTTPS certificate, and Caddy listened on TCP 80 and 443. I have not separately verified HTTP redirection.
 
 The task asks for public access during evaluation and does not specify a three-month period. My server expires on **2027-01-01**, about three months after purchase, and I am using that term for now. If evaluation continues beyond that date, I will need to renew the server. The public [domain registration record](https://rdap.radix.host/rdap/domain/calculator-demo.site), checked on October 3, lists expiry as **2027-10-03 07:53:10 UTC**. I also need to keep the services running during evaluation.
 
@@ -59,7 +59,7 @@ I added an `A` record in DNSPod for `calculator-demo.site` with host **`api`**, 
 Resolve-DnsName api.calculator-demo.site -Type A
 ```
 
-The returned IPv4 address should be `43.129.177.221`. If it differs later, check the DNSPod record and wait for the previous DNS cache to expire. Public HTTPS health now works through Caddy. DNS alone would not have proved that ports 80 and 443 were available.
+The returned IPv4 address should be `43.129.177.221`. If it differs later, check the DNSPod record and wait for the previous DNS cache to expire. The alternate `43-129-177-221.sslip.io` name embeds the same IP and needs no DNSPod record. DNS alone would not prove that ports 80 and 443 are available.
 
 ### 2. Install and start the API
 
@@ -103,7 +103,7 @@ sudo apt update
 sudo apt install caddy
 ```
 
-The repository's Caddyfile already names `api.calculator-demo.site` and proxies to the local API. Install and check it:
+The repository's Caddyfile names both HTTPS hostnames and proxies them to the local API. Install and check it:
 
 ```sh
 cd /opt/calculator-backend
@@ -111,16 +111,17 @@ sudo install -o root -g root -m 0644 deploy/tencent/Caddyfile /etc/caddy/Caddyfi
 sudo caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl enable --now caddy
 sudo systemctl reload caddy
-curl https://api.calculator-demo.site/api/health
+curl -fsS https://43-129-177-221.sslip.io/api/health
+curl -fsS https://api.calculator-demo.site/api/health
 ```
 
-Caddy sends requests to `127.0.0.1:8000` and [manages the certificate](https://caddyserver.com/docs/quick-starts/https). Certificate setup may take a moment after reload. The public HTTPS health request returned HTTP 200 with normal TLS validation. If HTTPS fails later, check the DNS result, TCP 80/443 access, `sudo systemctl status caddy --no-pager`, and `sudo journalctl -u caddy -n 80 --no-pager`. I have not separately verified HTTP redirection.
+Caddy sends requests to `127.0.0.1:8000` and [manages the certificates](https://caddyserver.com/docs/automatic-https). Certificate setup may take a moment after reload. The alternate hostname is provided by [sslip.io](https://sslip.io/), which maps its embedded IP to this server. I verified the alternate health and history endpoints over a direct connection without a proxy; TLS validation passed, and the Pages CORS preflight returned HTTP 204. The purchased domain still works from some networks, but direct requests on my tested route returned `ERR_CONNECTION_RESET`. If HTTPS fails later, check DNS, TCP 80/443, `sudo systemctl status caddy --no-pager`, and `sudo journalctl -u caddy -n 80 --no-pager`. If the server IP changes, the sslip.io hostname and Pages variable must change too. I have not separately verified HTTP redirection.
 
 ### 4. Connect the frontend and check persistence
 
-The frontend GitHub repository has `CALCULATOR_API_BASE_URL` set to `https://api.calculator-demo.site`, with no `/api` path or trailing slash. Pages workflow run `37109962209` succeeded on October 3. The public page returned HTTP 200, and its published `config.js` contains that API origin. The frontend's **API settings** can also hold a manual address; clear an older browser-saved address if it overrides the build value.
+The frontend GitHub repository has `CALCULATOR_API_BASE_URL` set to `https://43-129-177-221.sslip.io`, with no `/api` path or trailing slash. Pages workflow run `37127417185` succeeded on October 3. The public page returned HTTP 200, and its published `config.js` contains that API origin. The frontend's **API settings** can hold a manual address; replace an older browser-saved address if it overrides the build value.
 
-Direct public HTTPS API requests returned `12+8=20` as history ID 1 and `sqrt(81)=9` as ID 2. I read history, deleted ID 1, restarted `calculator-api.service`, and confirmed ID 2 remained. `1/0` returned HTTP 400 without adding a row. In the public Pages browser, **Backend connected** appeared, `sin(pi/2)=1` entered history, and deletion worked. After a full server reboot, `calculator-api.service`, `caddy.service`, and `calculator-backup.timer` were active. The `sqrt(81)=9` row and backup file remained, and external HTTPS health and history worked again. More expression and theme cases can still be checked in the public browser.
+Direct public HTTPS API requests returned `12+8=20` as history ID 1 and `sqrt(81)=9` as ID 2. I read history, deleted ID 1, restarted `calculator-api.service`, and confirmed ID 2 remained. `1/0` returned HTTP 400 without adding a row. After switching Pages to the alternate hostname, the previously failing device and Wi-Fi showed **Backend connected**; `sin(pi/2)=1` entered history and deletion worked. After a full server reboot, `calculator-api.service`, `caddy.service`, and `calculator-backup.timer` were active. The `sqrt(81)=9` row and backup file remained. More expression and theme cases can still be checked in the public browser.
 
 ### 5. Back up and maintain SQLite
 
