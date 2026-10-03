@@ -1,4 +1,4 @@
-# Replace api.example.com with a domain that resolves to the server's public IP.
-api.example.com {
+# DNS A record: api.calculator-demo.site -> 43.129.177.221.
+api.calculator-demo.site {
     reverse_proxy 127.0.0.1:8000
 }

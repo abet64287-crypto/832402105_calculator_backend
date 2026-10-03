@@ -2,7 +2,7 @@
 
 I built this Python JSON API for my calculator assignment. The [frontend](https://github.com/abet64287-crypto/832402105_calculator_frontend) is a separate project. It sends expressions to this backend, which calculates them and saves successful results for the history page.
 
-My deployment plan is GitHub Pages for the frontend and Tencent Cloud Lighthouse for this backend. The cloud server will use SQLite on its persistent disk. The code also supports PostgreSQL, but it is optional. **The server and domain have not been purchased or deployed yet**, so the online checks described below are still pending.
+My deployment plan is GitHub Pages for the frontend and a Tencent Cloud server in Hong Kong for this backend. I have bought the server and `calculator-demo.site` domain. The API address will be `https://api.calculator-demo.site`, and the server's public IP is `43.129.177.221`. I will keep SQLite history on the server disk. The code also supports PostgreSQL, but it is optional. **I have not yet verified the public API or Pages connection**, so the online checks below are still pending.
 
 ## Requirements and local use
 
@@ -43,15 +43,25 @@ python -m src.main
 
 If SQLite cannot be opened, check the file and parent directory permissions. In PostgreSQL mode, check the URL and database permissions. This Tencent Cloud setup sets neither `DATABASE_URL` nor `RENDER`.
 
-## Tencent Cloud Lighthouse deployment plan
+## Tencent Cloud deployment (Ubuntu Server 24.04 LTS)
 
-I plan to run the backend on a Hong Kong Lighthouse server. A CVM server can also use these steps. Choose Ubuntu Server 24.04 LTS or verify that another image has Python 3.10 or newer. I need a persistent disk and an API domain such as `api.example.com` pointing to the server's public IP.
+My server is in Tencent Cloud's Hong Kong Zone 3, and it uses Ubuntu Server 24.04 LTS. I use the `api.calculator-demo.site` subdomain for the API. Its DNSPod A record must point to `43.129.177.221`. The server and domain are purchased, but I still need to complete and test the deployment.
 
-The site must remain accessible during evaluation. I am planning for **at least three months of public availability**, so I need to check both the server and domain expiry dates, allow setup time, and renew before they expire. For a mainland China server, check current domain and ICP filing requirements.
+The site must remain accessible during evaluation. My server currently expires on **2027-01-01**. That is before **2027-01-07**, three months after the 2026-10-07 submission deadline, so I must renew the server to at least 2027-01-07 and check the domain expiry too. I also need to keep the services running during that period.
 
-GitHub Pages uses HTTPS, so the public API also needs HTTPS. Create a DNS A record for the API domain. In the Tencent Cloud firewall, open TCP 80 and 443, and restrict SSH 22 to my management IP if possible. **Do not open port 8000 publicly**. Python listens only on `127.0.0.1`, with Caddy in front. SQLite does not need a database port.
+GitHub Pages uses HTTPS, so the public API needs HTTPS. In the Tencent Cloud firewall, allow inbound TCP 80 and 443, and restrict SSH 22 to my management IP if possible. **Do not open port 8000 publicly**. Python listens only on `127.0.0.1`, with Caddy in front. SQLite does not need a database port.
 
-### 1. Install and start the API
+### 1. Set the DNS A record and firewall
+
+In DNSPod for `calculator-demo.site`, add an `A` record with host **`api`**, line **Default**, and value **`43.129.177.221`**. The result should be `api.calculator-demo.site -> 43.129.177.221`. After DNS has propagated, check from my computer:
+
+```powershell
+Resolve-DnsName api.calculator-demo.site -Type A
+```
+
+The returned IPv4 address should be `43.129.177.221`. If it differs, check the DNSPod record and wait for the previous DNS cache to expire. I also need to check Tencent Cloud's firewall and any Ubuntu firewall rules for TCP 80 and 443 before requesting a certificate. A correct DNS record alone does not open those ports.
+
+### 2. Install and start the API
 
 Connect by SSH and run these commands once. Create the `calculator` user only on the initial install:
 
@@ -79,27 +89,40 @@ sudo systemctl status calculator-api.service --no-pager
 sudo journalctl -u calculator-api.service -n 80 --no-pager
 ```
 
-### 2. Set up Caddy and HTTPS
+### 3. Set up Caddy and HTTPS
 
-Install stable Caddy using the [official Ubuntu instructions](https://caddyserver.com/docs/install). Once DNS and TCP 80/443 are ready:
+After DNS resolves to the server and TCP 80/443 are reachable, install stable Caddy using its [official Ubuntu package instructions](https://caddyserver.com/docs/install):
+
+```sh
+sudo apt install --yes debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo chmod o+r /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+sudo chmod o+r /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update
+sudo apt install caddy
+```
+
+The repository's Caddyfile already names `api.calculator-demo.site` and proxies to the local API. Install and check it:
 
 ```sh
 cd /opt/calculator-backend
 sudo install -o root -g root -m 0644 deploy/tencent/Caddyfile /etc/caddy/Caddyfile
-sudoedit /etc/caddy/Caddyfile
 sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl enable --now caddy
 sudo systemctl reload caddy
+curl https://api.calculator-demo.site/api/health
 ```
 
-Replace `api.example.com` in the editor with the real API domain. Visit `https://<your-api-domain>/api/health`. Caddy sends requests to `127.0.0.1:8000` and [manages the certificate](https://caddyserver.com/docs/quick-starts/https). If HTTPS fails, check DNS, the firewall, and `sudo journalctl -u caddy -n 80 --no-pager`.
+Caddy sends requests to `127.0.0.1:8000` and [manages the certificate](https://caddyserver.com/docs/quick-starts/https). The HTTPS health response should be `{"success": true, "status": "ok"}`. If HTTPS fails, check the DNS result, TCP 80/443 access, `sudo systemctl status caddy --no-pager`, and `sudo journalctl -u caddy -n 80 --no-pager`. I should also test the URL from a device outside the server.
 
-### 3. Connect the frontend and check persistence
+### 4. Connect the frontend and check persistence
 
-In the frontend GitHub repository, open **Settings → Secrets and variables → Actions → Variables**. Set `CALCULATOR_API_BASE_URL` to `https://<your-api-domain>`, with no `/api` path, then rerun the Pages workflow. The frontend's **API settings** can also hold a manual address; clear an older browser-saved address if it overrides the build value.
+In the frontend GitHub repository, open **Settings → Secrets and variables → Actions → Variables**. Set `CALCULATOR_API_BASE_URL` to `https://api.calculator-demo.site`, with no `/api` path or trailing slash, then rerun the Pages workflow. The frontend's **API settings** can also hold a manual address; clear an older browser-saved address if it overrides the build value.
 
-On the public Pages site, calculate an expression, refresh to view history, delete a record, and calculate again. Restart the backend with `sudo systemctl restart calculator-api.service` and check that the remaining history is still there. Before final acceptance, safely reboot the server and confirm systemd starts the API and history persists. `GET /api/history` can help inspect records. **These online checks remain pending until the server and domain exist.**
+On the public Pages site, calculate an expression, refresh to view history, delete a record, and calculate again. Restart the backend with `sudo systemctl restart calculator-api.service` and check that the remaining history is still there. Before final acceptance, safely reboot the server and confirm systemd starts the API and history persists. `GET /api/history` can help inspect records. **These online checks have not been completed yet.**
 
-### 4. Back up and maintain SQLite
+### 5. Back up and maintain SQLite
 
 The included script uses Python's SQLite online backup API for a consistent copy while the API runs. Install its daily timer and try one backup:
 
